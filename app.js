@@ -579,7 +579,8 @@ function buildFlashcard(card) {
 }
 
 // ============================================================
-// PDF Generation — matches preview exactly
+// Problem 1: PDF generation via html2canvas screenshot
+// of the actual preview DOM — guarantees PDF = preview
 // ============================================================
 async function downloadPDF() {
   showToast('正在生成 PDF...', 'info');
@@ -591,68 +592,29 @@ async function downloadPDF() {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
 
-    const availW = PDF_PAGE_W - PDF_MARGIN * 2;
-    const availH = PDF_PAGE_H - PDF_MARGIN * 2;
+    const pageElements = document.querySelectorAll('#previewContainer .a4-page');
+    if (pageElements.length === 0) {
+      throw new Error('找不到預覽頁面');
+    }
 
-    const pages = Math.ceil(cards.length / cardsPerPage);
+    for (let i = 0; i < pageElements.length; i++) {
+      if (i > 0) pdf.addPage();
 
-    for (let p = 0; p < pages; p++) {
-      if (p > 0) pdf.addPage();
+      const pageEl = pageElements[i];
 
-      const pageCards = cards.slice(p * cardsPerPage, (p + 1) * cardsPerPage);
-      const n = pageCards.length;
-      const cols = cardsPerPage <= 1 ? 1 : cardsPerPage <= 2 ? 2 : cardsPerPage <= 4 ? 2 : 3;
-      const rows = Math.ceil(n / cols);
+      // Use html2canvas to screenshot the exact preview element
+      const canvas = await html2canvas(pageEl, {
+        scale: 2,                    // higher resolution
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#ffffff',
+        width: pageEl.offsetWidth,
+        height: pageEl.offsetHeight,
+        logging: false
+      });
 
-      const cardW = availW / cols;
-      const cardH = availH / rows;
-
-      for (let i = 0; i < pageCards.length; i++) {
-        const card = pageCards[i];
-        const colIdx = i % cols;
-        const rowIdx = Math.floor(i / cols);
-        const x = PDF_MARGIN + colIdx * cardW;
-        const y = PDF_MARGIN + rowIdx * cardH;
-
-        // Background
-        pdf.setFillColor(255, 255, 255);
-        pdf.setDrawColor(226, 232, 240);
-        pdf.roundedRect(x, y, cardW - 4, cardH - 4, 6, 6, 'FD');
-
-        // Image area: 55% of card height
-        const imgAreaSize = Math.min(cardW - 8, cardH * 0.55);
-        const textAreaTop = y + imgAreaSize + 4;
-        const textAreaH = cardH - imgAreaSize - 8;
-        const textPadding = 6;
-        const textX = x + textPadding;
-        const textW = cardW - 8 - textPadding * 2;
-        const textStartY = textAreaTop + textPadding;
-
-        // Image
-        if (card.showImage && card.image) {
-          try {
-            pdf.addImage(card.image, 'JPEG', x + 4, y + 4, imgAreaSize - 4, imgAreaSize - 4);
-          } catch (imgErr) {
-            console.warn('Image add failed:', imgErr);
-          }
-        }
-
-        // Text
-        if (card.showZh && card.zh) {
-          pdf.setFont('Helvetica', 'bold');
-          pdf.setFontSize(card.fontSize);
-          pdf.setTextColor(30, 41, 59); // var(--text)
-          pdf.text(card.zh, textX, textStartY + card.fontSize, { maxWidth: textW, align: card.textAlign });
-        }
-
-        if (card.showEn && card.en) {
-          pdf.setFont('Helvetica', 'normal');
-          pdf.setFontSize(Math.max(10, card.fontSize - 4));
-          pdf.setTextColor(100, 116, 139); // var(--text-light)
-          const enY = textStartY + card.fontSize + (card.showZh && card.zh ? card.fontSize * 0.8 : 0);
-          pdf.text(card.en, textX, enY + Math.max(10, card.fontSize - 4), { maxWidth: textW, align: card.textAlign });
-        }
-      }
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      pdf.addImage(imgData, 'JPEG', 0, 0, PDF_PAGE_W, PDF_PAGE_H);
     }
 
     pdf.save('山啟快閃卡牌.pdf');
