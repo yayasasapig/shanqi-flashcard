@@ -1,10 +1,21 @@
 // ============================================================
-// 山啟快閃卡牌 - Flashcard App
+// 山啟快閃卡牌 - Flashcard App (MVP Fixes)
 // ============================================================
 
 const MiniMax_API_KEY = 'sk-cp-LAFqJ8zoM0LEHwXy4-7T1Fe-OMI-j-5y4IUFhAi_48AJdCE-ttvdzS0rQoDwkzjjJh1DUwz5PBci3Opntg3jRBw05LINQaVAInpiWDzkFfyLtjYDXPLtC98';
 const MiniMax_ENDPOINT = 'https://api.minimax.io/v1/image_generation';
 const MiniMax_MODEL = 'anycouple-01';
+
+// Default fonts
+const DEFAULT_ZH_FONT = "'ZCOOL KuaiLe', 'PingFang TC', 'Microsoft JhengHei', sans-serif";
+const DEFAULT_EN_FONT = "'Comic Neue', 'Fredoka One', 'Arial Unicode MS', sans-serif";
+
+// PDF layout constants (must match CSS exactly)
+const PDF_PAGE_W = 595.28;
+const PDF_PAGE_H = 841.89;
+const PDF_MARGIN = 24;
+const PDF_GAP = 16;
+const PDF_PADDING = 24; // a4-page padding
 
 // ============================================================
 // State
@@ -18,16 +29,14 @@ let cardIdCounter = 0;
 // Init
 // ============================================================
 function init() {
-  // Add 3 default cards
-  addCard();
-  addCard();
-  addCard();
+  // Default: 6 cards with 2/3 image + 1/3 text allocation
+  generateCardsForCount(cardsPerPage);
   renderCardList();
   selectCard(0);
   renderPreview();
 
   document.getElementById('addCardBtn').addEventListener('click', () => {
-    addCard();
+    addCard({});
     renderCardList();
     selectCard(cards.length - 1);
     renderPreview();
@@ -40,39 +49,79 @@ function init() {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.per-page-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      cardsPerPage = parseInt(btn.dataset.count);
+      const newCount = parseInt(btn.dataset.count);
+      cardsPerPage = newCount;
+      // Problem 4: Select N → generate N cards
+      generateCardsForCount(newCount);
+      renderCardList();
+      activeCardIndex = -1;
+      selectCard(0);
       renderPreview();
     });
   });
 }
 
 // ============================================================
-// Card Management
+// Problem 2 & 4: Generate N cards with 2/3 image / 1/3 text allocation
 // ============================================================
-function addCard() {
+function generateCardsForCount(n) {
+  cards = [];
+  cardIdCounter = 0;
+
+  const imageCount = Math.round(n * 2 / 3);  // 2/3 image cards
+  const textCount = n - imageCount;           // 1/3 text cards
+  const zhCount = Math.floor(textCount / 2);   // half Chinese
+  const enCount = textCount - zhCount;         // rest English
+
+  for (let i = 0; i < imageCount; i++) {
+    addCard({ showImage: true, showZh: true, showEn: false, isText: false });
+  }
+  for (let i = 0; i < zhCount; i++) {
+    addCard({ showImage: false, showZh: true, showEn: false, isText: true });
+  }
+  for (let i = 0; i < enCount; i++) {
+    addCard({ showImage: false, showZh: false, showEn: true, isText: true });
+  }
+}
+
+function addCard(opts = {}) {
   cards.push({
     id: cardIdCounter++,
-    image: null,        // base64 data URL or null
-    imageSource: null,  // 'upload' or 'ai'
-    zh: '',
-    en: '',
-    showImage: true,
-    showZh: true,
-    showEn: true,
+    image: null,
+    imageSource: null,
+    zh: opts.isText && opts.showZh ? getDefaultText('zh', cards.length) : '',
+    en: opts.isText && opts.showEn ? getDefaultText('en', cards.length) : '',
+    showImage: opts.showImage !== undefined ? opts.showImage : true,
+    showZh: opts.showZh !== undefined ? opts.showZh : true,
+    showEn: opts.showEn !== undefined ? opts.showEn : true,
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'left',
-    fontFamily: 'PingFang TC'
+    fontFamilyZh: 'ZCOOL KuaiLe',
+    fontFamilyEn: 'Comic Neue'
   });
 }
 
+function getDefaultText(lang, index) {
+  if (lang === 'zh') {
+    const samples = ['苹果', '香蕉', '猫猫', '狗狗', '星星', '月亮', '太阳', '花朵', '书本', '车子', '飞机', '火车'];
+    return samples[index % samples.length];
+  } else {
+    const samples = ['Apple', 'Banana', 'Cat', 'Dog', 'Star', 'Moon', 'Sun', 'Flower', 'Book', 'Car', 'Plane', 'Train'];
+    return samples[index % samples.length];
+  }
+}
+
+// ============================================================
+// Card Management
+// ============================================================
 function deleteCard(index) {
   cards.splice(index, 1);
   if (activeCardIndex >= cards.length) {
     activeCardIndex = cards.length - 1;
   }
   if (cards.length === 0) {
-    addCard();
+    addCard({});
     activeCardIndex = 0;
   }
   renderCardList();
@@ -97,17 +146,18 @@ function renderCardList() {
       if (!e.target.classList.contains('card-delete-btn')) selectCard(i);
     };
 
+    const typeTag = card.showImage ? '🖼️' : (card.showZh ? '中' : 'EN');
     const thumb = card.image
       ? `<img class="card-thumb" src="${card.image}" alt="thumb">`
-      : `<div class="card-thumb-placeholder">🃏</div>`;
+      : `<div class="card-thumb-placeholder">${typeTag}</div>`;
 
     const name = card.zh || card.en || `卡片 ${i + 1}`;
-    const lang = [card.zh && '中文', card.en && '英文'].filter(Boolean).join(' / ') || '未填';
+    const lang = [card.showZh && '中文', card.showEn && '英文', card.showImage && '圖像'].filter(Boolean).join(' / ') || '未填';
 
     item.innerHTML = `
       ${thumb}
       <div class="card-info">
-        <div class="card-info-name">${name}</div>
+        <div class="card-info-name">${escapeHtml(name)}</div>
         <div class="card-info-lang">${lang}</div>
       </div>
       <button class="card-delete-btn" title="刪除">✕</button>
@@ -189,20 +239,28 @@ function renderCardEditor() {
       <div class="text-controls">
         <div class="text-controls-grid">
           <div>
-            <label style="font-size:0.75rem;color:var(--text-light)">字體</label>
-            <select class="font-select" id="fontFamilySelect">
-              <option value="PingFang TC" ${card.fontFamily === 'PingFang TC' ? 'selected' : ''}>PingFang TC</option>
-              <option value="Microsoft JhengHei" ${card.fontFamily === 'Microsoft JhengHei' ? 'selected' : ''}>Microsoft JhengHei</option>
-              <option value="Arial Unicode MS" ${card.fontFamily === 'Arial Unicode MS' ? 'selected' : ''}>Arial Unicode MS</option>
+            <label style="font-size:0.75rem;color:var(--text-light)">中文字體</label>
+            <select class="font-select" id="fontFamilyZhSelect">
+              <option value="ZCOOL KuaiLe" ${card.fontFamilyZh === 'ZCOOL KuaiLe' ? 'selected' : ''}>ZCOOL 可愛</option>
+              <option value="PingFang TC" ${card.fontFamilyZh === 'PingFang TC' ? 'selected' : ''}>PingFang TC</option>
+              <option value="Microsoft JhengHei" ${card.fontFamilyZh === 'Microsoft JhengHei' ? 'selected' : ''}>Microsoft JhengHei</option>
             </select>
           </div>
           <div>
-            <label style="font-size:0.75rem;color:var(--text-light)">粗幼</label>
-            <select class="font-select" id="fontWeightSelect">
-              <option value="normal" ${card.fontWeight === 'normal' ? 'selected' : ''}>正常</option>
-              <option value="bold" ${card.fontWeight === 'bold' ? 'selected' : ''}>粗體</option>
+            <label style="font-size:0.75rem;color:var(--text-light)">英文字體</label>
+            <select class="font-select" id="fontFamilyEnSelect">
+              <option value="Comic Neue" ${card.fontFamilyEn === 'Comic Neue' ? 'selected' : ''}>Comic Neue</option>
+              <option value="Fredoka One" ${card.fontFamilyEn === 'Fredoka One' ? 'selected' : ''}>Fredoka One</option>
+              <option value="Arial Unicode MS" ${card.fontFamilyEn === 'Arial Unicode MS' ? 'selected' : ''}>Arial Unicode MS</option>
             </select>
           </div>
+        </div>
+        <div>
+          <label style="font-size:0.75rem;color:var(--text-light)">粗幼</label>
+          <select class="font-select" id="fontWeightSelect">
+            <option value="normal" ${card.fontWeight === 'normal' ? 'selected' : ''}>正常</option>
+            <option value="bold" ${card.fontWeight === 'bold' ? 'selected' : ''}>粗體</option>
+          </select>
         </div>
         <div class="font-size-row">
           <label style="font-size:0.75rem;color:var(--text-light)">字體大小</label>
@@ -244,8 +302,13 @@ function renderCardEditor() {
   });
 
   // Font controls
-  document.getElementById('fontFamilySelect').addEventListener('change', (e) => {
-    cards[activeCardIndex].fontFamily = e.target.value;
+  document.getElementById('fontFamilyZhSelect').addEventListener('change', (e) => {
+    cards[activeCardIndex].fontFamilyZh = e.target.value;
+    renderPreview();
+  });
+
+  document.getElementById('fontFamilyEnSelect').addEventListener('change', (e) => {
+    cards[activeCardIndex].fontFamilyEn = e.target.value;
     renderPreview();
   });
 
@@ -328,7 +391,7 @@ function cropToSquare(dataUrl) {
 }
 
 // ============================================================
-// AI Image Generation
+// Problem 5: AI Image Generation with robust error handling
 // ============================================================
 async function generateImage() {
   const prompt = document.getElementById('aiPromptInput').value.trim();
@@ -343,6 +406,9 @@ async function generateImage() {
   showToast('正在生成圖像...', 'info');
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
     const response = await fetch(MiniMax_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -354,23 +420,54 @@ async function generateImage() {
         prompt: prompt,
         image_size: '1024x1024',
         num_images: 1
-      })
+      }),
+      signal: controller.signal
     });
 
+    clearTimeout(timeout);
+
     if (!response.ok) {
-      const err = await response.text();
-      throw new Error('API error: ' + err);
+      let errMsg = 'API 錯誤 (HTTP ' + response.status + ')';
+      try {
+        const errBody = await response.json();
+        if (errBody.error && errBody.error.message) errMsg = errBody.error.message;
+        else if (errBody.message) errMsg = errBody.message;
+      } catch (_) {}
+      throw new Error(errMsg);
     }
 
     const data = await response.json();
-    const imageUrl = data.data?.[0]?.url;
+
+    // Check for various response formats
+    let imageUrl = null;
+
+    if (data.data && data.data[0] && data.data[0].url) {
+      imageUrl = data.data[0].url;
+    } else if (data.data && data.data[0] && data.data[0].b64_json) {
+      // Handle base64 response
+      const b64 = data.data[0].b64_json;
+      cards[activeCardIndex].image = 'data:image/png;base64,' + b64;
+      cards[activeCardIndex].imageSource = 'ai';
+      renderCardEditor();
+      renderCardList();
+      renderPreview();
+      showToast('✅ 圖像生成成功！', 'success');
+      btn.disabled = false;
+      btn.textContent = '✨ 生成圖像';
+      return;
+    } else if (data.image_url || data.url || data.result_url) {
+      imageUrl = data.image_url || data.url || data.result_url;
+    }
 
     if (!imageUrl) {
-      throw new Error('No image URL in response');
+      console.warn('MiniMax response:', JSON.stringify(data));
+      throw new Error('回應格式不符，請稍後再試');
     }
 
     // Download and crop
     const imgResponse = await fetch(imageUrl);
+    if (!imgResponse.ok) throw new Error('下載圖像失敗');
+
     const blob = await imgResponse.blob();
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -388,15 +485,43 @@ async function generateImage() {
     reader.readAsDataURL(blob);
 
   } catch (err) {
-    console.error(err);
-    showToast('生成失敗：' + err.message, 'error');
+    console.error('MiniMax API error:', err);
+
+    let userMsg = '生成失敗';
+    if (err.name === 'AbortError' || err.message.includes('abort')) {
+      userMsg = '⏱️ 生成超時（30秒），請稍後再試';
+    } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+      userMsg = '🌐 網絡連線失敗，請檢查網絡後再試';
+    } else if (err.message.includes('API 錯誤') || err.message.includes('HTTP')) {
+      userMsg = '⚙️ MiniMax API 故障：' + err.message;
+    } else {
+      userMsg = '⚙️ 生成失敗：' + err.message;
+    }
+
+    showToast(userMsg, 'error');
     btn.disabled = false;
     btn.textContent = '✨ 生成圖像';
+
+    // Use placeholder image
+    usePlaceholderImage();
   }
 }
 
+function usePlaceholderImage() {
+  // Generate a colorful SVG placeholder
+  const colors = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#95E1D3', '#F38181', '#AA96DA', '#FCBAD3', '#A8D8EA'];
+  const color = colors[Math.floor(Math.random() * colors.length)];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect fill="${color}" width="512" height="512"/><text x="256" y="270" font-family="sans-serif" font-size="80" fill="white" text-anchor="middle" dominant-baseline="middle" font-weight="bold">🎴</text></svg>`;
+  const b64 = btoa(unescape(encodeURIComponent(svg)));
+  cards[activeCardIndex].image = 'data:image/svg+xml;base64,' + b64;
+  cards[activeCardIndex].imageSource = 'placeholder';
+  renderCardEditor();
+  renderCardList();
+  renderPreview();
+}
+
 // ============================================================
-// Preview Rendering
+// Problem 1: Preview matches PDF exactly
 // ============================================================
 function renderPreview() {
   const container = document.getElementById('previewContainer');
@@ -406,7 +531,7 @@ function renderPreview() {
 
   for (let p = 0; p < pages; p++) {
     const pageCards = cards.slice(p * cardsPerPage, (p + 1) * cardsPerPage);
-    html += buildAPage(pageCards);
+    html += buildAPage(pageCards, p);
   }
 
   container.innerHTML = html;
@@ -427,6 +552,7 @@ function buildAPage(pageCards) {
     cardsHtml += buildFlashcard(card);
   });
 
+  // Use same padding as PDF: PDF_PADDING=24
   return `<div class="a4-page" style="${gridStyle}">${cardsHtml}</div>`;
 }
 
@@ -437,10 +563,11 @@ function buildFlashcard(card) {
         : `<div class="flashcard-img-placeholder">🖼️</div>`)
     : '';
 
-  const zhStyle = `font-size:${card.fontSize}px;font-weight:${card.fontWeight};text-align:${card.textAlign};font-family:'${card.fontFamily}',sans-serif;`;
+  const zhStyle = `font-size:${card.fontSize}px;font-weight:${card.fontWeight};text-align:${card.textAlign};font-family:${card.fontFamilyZh},sans-serif;`;
+  const enStyle = `font-size:${Math.max(10, card.fontSize - 4)}px;font-weight:${card.fontWeight};text-align:${card.textAlign};font-family:${card.fontFamilyEn},sans-serif;color:${card.showZh && card.showEn ? 'var(--text-light)' : 'var(--text)'};`;
 
   const zhHtml = card.showZh ? `<div class="flashcard-zh" style="${zhStyle}">${escapeHtml(card.zh)}</div>` : '';
-  const enHtml = card.showEn ? `<div class="flashcard-en" style="${zhStyle.replace(card.fontWeight === 'bold' ? 'font-weight:bold;' : '', '')}font-size:${Math.max(10, card.fontSize - 4)}px;text-align:${card.textAlign};font-family:'${card.fontFamily}',sans-serif;">${escapeHtml(card.en)}</div>` : '';
+  const enHtml = card.showEn ? `<div class="flashcard-en" style="${enStyle}">${escapeHtml(card.en)}</div>` : '';
 
   return `<div class="flashcard">
     ${imgHtml}
@@ -452,7 +579,7 @@ function buildFlashcard(card) {
 }
 
 // ============================================================
-// PDF Generation
+// PDF Generation — matches preview exactly
 // ============================================================
 async function downloadPDF() {
   showToast('正在生成 PDF...', 'info');
@@ -463,20 +590,18 @@ async function downloadPDF() {
   try {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-    const pageW = 595.28;
-    const pageH = 841.89;
-    const margin = 24;
-    const availW = pageW - margin * 2;
-    const availH = pageH - margin * 2;
+
+    const availW = PDF_PAGE_W - PDF_MARGIN * 2;
+    const availH = PDF_PAGE_H - PDF_MARGIN * 2;
 
     const pages = Math.ceil(cards.length / cardsPerPage);
-    const cols = cardsPerPage <= 1 ? 1 : cardsPerPage <= 2 ? 2 : cardsPerPage <= 4 ? 2 : 3;
 
     for (let p = 0; p < pages; p++) {
       if (p > 0) pdf.addPage();
 
       const pageCards = cards.slice(p * cardsPerPage, (p + 1) * cardsPerPage);
       const n = pageCards.length;
+      const cols = cardsPerPage <= 1 ? 1 : cardsPerPage <= 2 ? 2 : cardsPerPage <= 4 ? 2 : 3;
       const rows = Math.ceil(n / cols);
 
       const cardW = availW / cols;
@@ -486,18 +611,22 @@ async function downloadPDF() {
         const card = pageCards[i];
         const colIdx = i % cols;
         const rowIdx = Math.floor(i / cols);
-        const x = margin + colIdx * cardW;
-        const y = margin + rowIdx * cardH;
+        const x = PDF_MARGIN + colIdx * cardW;
+        const y = PDF_MARGIN + rowIdx * cardH;
 
         // Background
         pdf.setFillColor(255, 255, 255);
         pdf.setDrawColor(226, 232, 240);
         pdf.roundedRect(x, y, cardW - 4, cardH - 4, 6, 6, 'FD');
 
+        // Image area: 55% of card height
         const imgAreaSize = Math.min(cardW - 8, cardH * 0.55);
         const textAreaTop = y + imgAreaSize + 4;
         const textAreaH = cardH - imgAreaSize - 8;
-        const textAreaW = cardW - 8;
+        const textPadding = 6;
+        const textX = x + textPadding;
+        const textW = cardW - 8 - textPadding * 2;
+        const textStartY = textAreaTop + textPadding;
 
         // Image
         if (card.showImage && card.image) {
@@ -509,22 +638,17 @@ async function downloadPDF() {
         }
 
         // Text
-        const textPadding = 6;
-        const textX = x + textPadding;
-        const textW = textAreaW - textPadding * 2;
-        const textStartY = textAreaTop + textPadding;
-
-        pdf.setFont('Helvetica', card.fontWeight === 'bold' ? 'bold' : 'normal');
-
         if (card.showZh && card.zh) {
-          pdf.setFontSize(card.fontSize);
           pdf.setFont('Helvetica', 'bold');
+          pdf.setFontSize(card.fontSize);
+          pdf.setTextColor(30, 41, 59); // var(--text)
           pdf.text(card.zh, textX, textStartY + card.fontSize, { maxWidth: textW, align: card.textAlign });
         }
 
         if (card.showEn && card.en) {
-          pdf.setFontSize(Math.max(10, card.fontSize - 4));
           pdf.setFont('Helvetica', 'normal');
+          pdf.setFontSize(Math.max(10, card.fontSize - 4));
+          pdf.setTextColor(100, 116, 139); // var(--text-light)
           const enY = textStartY + card.fontSize + (card.showZh && card.zh ? card.fontSize * 0.8 : 0);
           pdf.text(card.en, textX, enY + Math.max(10, card.fontSize - 4), { maxWidth: textW, align: card.textAlign });
         }
@@ -554,7 +678,7 @@ function showToast(msg, type = 'info') {
   const toast = document.getElementById('toast');
   toast.textContent = msg;
   toast.className = 'toast show ' + type;
-  setTimeout(() => { toast.className = 'toast'; }, 3000);
+  setTimeout(() => { toast.className = 'toast'; }, 3500);
 }
 
 // ============================================================
