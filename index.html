@@ -3,61 +3,71 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>山啟快閃卡牌 - Flashcard for Kids</title>
+  <title>山啟快閃卡牌 | ShanQi Flashcard Studio</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&family=Fredoka+One&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&family=Fredoka+One&family=Noto+Sans+TC:wght@300;400;500;700&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
-  <header>
-    <h1>🎴 山啟快閃卡牌</h1>
-    <p>Flashcard for Kids - 繁體中文 / 英文雙語學習卡</p>
-  </header>
 
-  <main>
-    <!-- 左側：編輯面板 -->
-    <aside class="editor-panel">
-      <div class="panel-section">
-        <label>📄 每頁卡片數量</label>
-        <div class="cards-per-page">
-          <button class="per-page-btn" data-count="1">1張</button>
-          <button class="per-page-btn" data-count="2">2張</button>
-          <button class="per-page-btn" data-count="4">4張</button>
-          <button class="per-page-btn active" data-count="6">6張</button>
-          <button class="per-page-btn" data-count="9">9張</button>
-          <button class="per-page-btn" data-count="12">12張</button>
-        </div>
+<!-- Header -->
+<header>
+  <h1>◈ 山啟快閃卡牌</h1>
+  <p>Flashcard Studio — 繁體中文 / 英文雙語學習卡</p>
+</header>
+
+<!-- Main Content -->
+<main>
+
+  <!-- Left Panel: Editor -->
+  <aside class="editor-panel">
+    
+    <!-- Cards Per Page -->
+    <div class="panel-section">
+      <label>📄 每頁卡片數量</label>
+      <div class="cards-per-page">
+        <button class="per-page-btn" data-count="1">1張</button>
+        <button class="per-page-btn" data-count="2">2張</button>
+        <button class="per-page-btn active" data-count="4">4張</button>
+        <button class="per-page-btn" data-count="6">6張</button>
+        <button class="per-page-btn" data-count="9">9張</button>
       </div>
+    </div>
 
-      <div class="panel-section">
-        <div class="section-header">
-          <label>🃏 卡片列表</label>
-          <button id="addCardBtn" class="btn-add">+ 新增卡片</button>
-        </div>
-        <div id="cardList" class="card-list"></div>
+    <!-- Card List -->
+    <div class="panel-section flex-grow">
+      <div class="section-header">
+        <label>🃏 卡片列表</label>
+        <button id="addCardBtn" class="btn-add">+ 新增卡片</button>
       </div>
+      <div id="cardList" class="card-list"></div>
+    </div>
 
-      <div class="panel-section" id="activeCardEditor">
-        <h3>✏️ 編輯卡片</h3>
-        <div id="cardEditor" class="card-editor"></div>
-      </div>
-    </aside>
+    <!-- Card Editor -->
+    <div class="panel-section" id="activeCardEditor">
+      <h3>✏️ 編輯卡片</h3>
+      <div id="cardEditor" class="card-editor"></div>
+    </div>
 
-    <!-- 右側：預覽面板 -->
-    <section class="preview-panel">
-      <div class="preview-header">
-        <label>👁️ 實時預覽</label>
-        <button id="downloadPdfBtn" class="btn-download">⬇️ 下載 PDF</button>
-      </div>
-      <div class="preview-container" id="previewContainer"></div>
-    </section>
-  </main>
+  </aside>
 
-  <div id="toast" class="toast"></div>
+  <!-- Right Panel: Preview -->
+  <section class="preview-panel">
+    <div class="preview-header">
+      <label>👁️ 實時預覽</label>
+      <button id="downloadPdfBtn" class="btn-download">⬇️ 匯出 PDF</button>
+    </div>
+    <div class="preview-container" id="previewContainer"></div>
+  </section>
 
-  <script src="app.js"></script>
+</main>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script src="app.js"></script>
 </body>
 </html>
